@@ -1,8 +1,11 @@
 ﻿using GraphQLProject.Data;
 using GraphQLProject.Interfaces;
 using GraphQLProject.Models;
+using Microsoft.Extensions.Caching.Distributed;
+using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 
 namespace GraphQLProject.Services
 {
@@ -17,28 +20,69 @@ namespace GraphQLProject.Services
         //    new Product(){Id = 4, Name = "Bolo", Price = 10},
         //};
 
+        // VARIABLES
 
-        private GraphQLDbContext _dbContext;
-        public ProductService(GraphQLDbContext dbContext)
+
+        //CONSTRUCTORS
+        private readonly GraphQLDbContext _dbContext;
+        private readonly IDistributedCache _distributedCache;
+        public ProductService(GraphQLDbContext dbContext, IDistributedCache distributedCache)
         {
+            _distributedCache = distributedCache;
             _dbContext = dbContext;
         }
-
+        //===================================================================================
 
         public List<Product> GetAllProducts()
         {
             //return products;
 
-            return _dbContext.Products.ToList();    //using System.Linq;
+            //return _dbContext.Products.ToList();    //using System.Linq;
+
+            var cacheKey = "ProductKey";
+            var products = new List<Product>();
+
+            var json = _distributedCache.GetString(cacheKey);
+            if (json != null)
+            {
+                // OBTEM DADOS NO CACHE
+                var redisProductList = _distributedCache.Get(cacheKey);
+                string serializedProductList = Encoding.UTF8.GetString(redisProductList);
+                products = JsonConvert.DeserializeObject<List<Product>>(serializedProductList);
+            }
+
+            return products;
         }
 
         public Product AddProduct(Product product)
         {
             //products.Add(product); 
             //return product;
+            string key = "ProductKey";
+            string serializedProductList;
+            var productList = new List<Product>();
 
             _dbContext.Products.Add(product);
             _dbContext.SaveChanges();
+
+            // OBTEM DADOS NO CACHE
+            var redisProductList = _distributedCache.Get(key);
+
+
+            if (redisProductList != null)
+            {
+                // SE O CACHE POSSUI CONTEUDO
+                serializedProductList = Encoding.UTF8.GetString(redisProductList);
+                productList = JsonConvert.DeserializeObject<List<Product>>(serializedProductList);
+            }
+            else
+            {
+                // SE O CACHE ESTA VAZIO ALIMENTA O CACHE
+                productList = _dbContext.Products.ToList();
+                serializedProductList = JsonConvert.SerializeObject(productList);
+                redisProductList = Encoding.UTF8.GetBytes(serializedProductList);
+                _distributedCache.SetString(key, serializedProductList);
+            }
             return product;
 
             

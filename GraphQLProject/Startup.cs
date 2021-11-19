@@ -55,13 +55,32 @@ namespace GraphQLProject
             services.AddTransient<ProductSchema>();
             services.AddTransient<ISchema, ProductSchema>();
 
+
+
+
+            // DATABASE CONNECTION
+            //==============================================
+            services.AddDbContext<GraphQLDbContext>(option => option.UseSqlServer(@"Data Source= (localdb)\MSSQLLocalDB; Initial Catalog=GraphQLDb; Integrated Security = True"));
+
+
+            //GRAPHQL
+            //==============================================
             services.AddGraphQL(options => {
                 options.EnableMetrics = false;
             }).AddSystemTextJson();
 
 
-            services.AddDbContext<GraphQLDbContext>(option => option.UseSqlServer(@"Data Source= (localdb)\MSSQLLocalDB; Initial Catalog=GraphQLDb; Integrated Security = True"));
+            //REDIS
+            //==============================================
+            services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = "localhost:6379";
+            });
 
+            //services.AddDistributedRedisCache(option =>
+            //{
+            //    option.Configuration = "localhost:6379";
+            //});
 
         }
 

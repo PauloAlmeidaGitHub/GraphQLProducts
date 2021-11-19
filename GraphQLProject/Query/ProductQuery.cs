@@ -10,7 +10,10 @@ namespace GraphQLProject.Query
         public ProductQuery(IProduct productService)
         {
             //LISTA PRODUTOS
-            Field<ListGraphType<ProductType>>("products", resolve: context=> { return productService.GetAllProducts(); });
+            Field<ListGraphType<ProductType>>("products", resolve: context=> 
+            { 
+                return productService.GetAllProducts(); 
+            });
 
             // PRODUTO BY ID
             Field<ProductType>
