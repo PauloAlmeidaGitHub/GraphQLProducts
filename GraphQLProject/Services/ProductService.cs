@@ -3,6 +3,7 @@ using GraphQLProject.Interfaces;
 using GraphQLProject.Models;
 using Microsoft.Extensions.Caching.Distributed;
 using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -11,6 +12,7 @@ namespace GraphQLProject.Services
 {
     public class ProductService : IProduct
     {
+        // OLD CODE
         //private static List<Product> products = new List<Product>
         //{
         //    new Product(){Id = 0, Name = "Pão", Price = 5},
@@ -20,10 +22,16 @@ namespace GraphQLProject.Services
         //    new Product(){Id = 4, Name = "Bolo", Price = 10},
         //};
 
-        // VARIABLES
+
+        // SHARED VARIABLES
+        //===================================================================================
+        string key = "ProductKey";
+        List<Product> objectList = new List<Product>();
+        string serializedObjectList;
 
 
         //CONSTRUCTORS
+        //===================================================================================
         private readonly GraphQLDbContext _dbContext;
         private readonly IDistributedCache _distributedCache;
         public ProductService(GraphQLDbContext dbContext, IDistributedCache distributedCache)
@@ -31,115 +39,66 @@ namespace GraphQLProject.Services
             _distributedCache = distributedCache;
             _dbContext = dbContext;
         }
-        //===================================================================================
 
+
+        //===================================================================================
         public List<Product> GetAllProducts()
         {
-            //return products;
-
             //return _dbContext.Products.ToList();    //using System.Linq;
 
-            var cacheKey = "ProductKey";
-            var products = new List<Product>();
-
-            var json = _distributedCache.GetString(cacheKey);
-            if (json != null)
+            // GET CACHE
+            var cache = _distributedCache.GetString(key);
+            if (cache != null)
             {
                 // OBTEM DADOS NO CACHE
-                var redisProductList = _distributedCache.Get(cacheKey);
-                string serializedProductList = Encoding.UTF8.GetString(redisProductList);
-                products = JsonConvert.DeserializeObject<List<Product>>(serializedProductList);
+                var redisObjectList = _distributedCache.Get(key);
+                serializedObjectList = Encoding.UTF8.GetString(redisObjectList);
+                objectList = JsonConvert.DeserializeObject<List<Product>>(serializedObjectList);
             }
+            else
+            {
+                // ALIMENTA O CACHE
+                objectList = _dbContext.Products.ToList();
+                serializedObjectList = JsonConvert.SerializeObject(objectList);
+                var options = new DistributedCacheEntryOptions().SetAbsoluteExpiration(DateTime.Now.AddMinutes(10)).SetSlidingExpiration(TimeSpan.FromMinutes(2));
 
-            return products;
+                _distributedCache.SetString(key, serializedObjectList);
+            }
+            return objectList;
+            /*
+            {
+                  products{
+                    id, name, price
+                  }
+                } 
+            */
         }
 
+
+        //===================================================================================
         public Product AddProduct(Product product)
         {
             //products.Add(product); 
             //return product;
-            string key = "ProductKey";
-            string serializedProductList;
-            var productList = new List<Product>();
+           
 
             _dbContext.Products.Add(product);
             _dbContext.SaveChanges();
 
-            // OBTEM DADOS NO CACHE
-            var redisProductList = _distributedCache.Get(key);
+            // ALIMENTA O CACHE
+                objectList = _dbContext.Products.ToList();
+                serializedObjectList = JsonConvert.SerializeObject(objectList);
+                var redisProductList = Encoding.UTF8.GetBytes(serializedObjectList);
 
+                // DEFINE PRAZO DE EXPIRACAO PARA O CACHE (10min Janela Expiração 2min)
+                var options = new DistributedCacheEntryOptions().SetAbsoluteExpiration(DateTime.Now.AddMinutes(10)).SetSlidingExpiration(TimeSpan.FromMinutes(2));
 
-            if (redisProductList != null)
-            {
-                // SE O CACHE POSSUI CONTEUDO
-                serializedProductList = Encoding.UTF8.GetString(redisProductList);
-                productList = JsonConvert.DeserializeObject<List<Product>>(serializedProductList);
-            }
-            else
-            {
-                // SE O CACHE ESTA VAZIO ALIMENTA O CACHE
-                productList = _dbContext.Products.ToList();
-                serializedProductList = JsonConvert.SerializeObject(productList);
-                redisProductList = Encoding.UTF8.GetBytes(serializedProductList);
-                _distributedCache.SetString(key, serializedProductList);
-            }
+                _distributedCache.SetString(key, serializedObjectList);
+            
             return product;
-
-            
         }
-
-        public Product UpdateProduct(int id, Product product)
-        {
-            //products[id] = product;
-            //return product;
-
-
-
-            // var productObjAUX = _dbContext.Products.FirstOrDefault(p => p.Id == id);  //TESTAR
-            var productObjAUX = _dbContext.Products.Find(id);
-
-            productObjAUX.Name = product.Name;
-            productObjAUX.Price = product.Price;
-
-            _dbContext.SaveChanges();
-            return product;
-
-        }
-
-        public void DeleteProduct(int id)
-        {
-            //products.RemoveAt(id);
-
-
-            var productObjAUX = _dbContext.Products.Find(id);
-            _dbContext.Remove(productObjAUX);
-            _dbContext.SaveChanges();
-        }
-
-        public Product GetProductById(int id)
-        {
-            //return products.Find(p => p.Id == id);
-
-            // return _dbContext.Products.FirstOrDefault(p => p.Id == id);    // Testar - Nesse caso vazio não vai gerar exception
-            return _dbContext.Products.Find(id);
-        }
-    }
-}
-
-
-/*          JSON PARA TESTE
-            
-            // TODOS 
-                {
-                  products{
-                    id, name, price
-                  }
-                }
-  
-            
-
-             // INSERIR
-             mutation AddProduct($product:ProductInputType){
+        /*
+            mutation AddProduct($product:ProductInputType){
              createProduct(product:$product) {
                     id, 
                     name, 
@@ -150,39 +109,73 @@ namespace GraphQLProject.Services
             {
               "product": {
                 "id": 5,
-                "name": "Ancho",
-                "price": 6
+                "name": "Costela Minga",
+                "price": 60.75
+              }
             }
-            
+        */
 
+        //===================================================================================
+        public Product UpdateProduct(int id, Product product)
+        {
+            //products[id] = product;
+            //return product;
 
+            // var productObjAUX = _dbContext.Products.FirstOrDefault(p => p.Id == id);  //TESTAR
+            var productObjAUX = _dbContext.Products.Find(id);
 
-            // ATUALIZAR
-            mutation UpdateProduct($id:Int $product:ProductInputType){
-            updateProduct(id:$id product:$product) {
-                   id, 
-                   name, 
-                   price
-               }
+            productObjAUX.Name = product.Name;
+            productObjAUX.Price = product.Price;
+
+            _dbContext.SaveChanges();
+            return product;
+        }
+        /*
+            mutation UpdateProduct($id: Int, $product: ProductInputType) {
+            updateProduct(id: $id, product: $product) {
+              id
+              name
+              price
             }
+          }
 
             
-            {
+          {
+            "id": 2,
+            "product": {
               "id": 2,
-              "product": {
-                "id": 2,
-                "name": "Mortadela",
-                "price": 3
-            }
+              "name": "Mortadela",
+              "price": 3.34
+	          }
+          } 
+        */
+
+        //===================================================================================
+        public void DeleteProduct(int id)
+        {
+            //products.RemoveAt(id);
 
 
-
-            // DELETAR
+            var productObjAUX = _dbContext.Products.Find(id);
+            _dbContext.Remove(productObjAUX);
+            _dbContext.SaveChanges();
+        }
+        /*
             mutation DeleteProduct($id:Int){
             deleteProduct(id:$id)
             }
 
             {
-            "id": 3
+            "id": 5
             }
-          */
+        */
+
+        public Product GetProductById(int id)
+        {
+            //return products.Find(p => p.Id == id);
+
+            // return _dbContext.Products.FirstOrDefault(p => p.Id == id);    // Testar - Nesse caso vazio não vai gerar exception
+            return _dbContext.Products.Find(id);
+        }
+    }
+}
