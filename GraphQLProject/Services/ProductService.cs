@@ -8,6 +8,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 
+// TAREFA 1 - USINGS
+// using System.Text;
+// using Newtonsoft.Json;
+// using Microsoft.Extensions.Caching.Distributed;
+
 namespace GraphQLProject.Services
 {
     public class ProductService : IProduct
@@ -23,13 +28,14 @@ namespace GraphQLProject.Services
         //};
 
 
+        // TAREFA 2 - VARIAVEIS DO CONTEXTO DA CLASSE
         // SHARED VARIABLES
         //===================================================================================
         string key = "ProductKey";
         List<Product> objectList = new List<Product>();
         string serializedObjectList;
 
-
+        // TAREFA 3 - CONSTRUTORES
         //CONSTRUCTORS
         //===================================================================================
         private readonly GraphQLDbContext _dbContext;
@@ -53,6 +59,8 @@ namespace GraphQLProject.Services
                 // OBTEM DADOS NO CACHE
                 var redisObjectList = _distributedCache.Get(key);
                 serializedObjectList = Encoding.UTF8.GetString(redisObjectList);
+
+                // TAREFA 4 - Selecionar objeto correto (Product)
                 objectList = JsonConvert.DeserializeObject<List<Product>>(serializedObjectList);
             }
             else
@@ -123,6 +131,7 @@ namespace GraphQLProject.Services
 
             // var productObjAUX = _dbContext.Products.FirstOrDefault(p => p.Id == id);  //TESTAR
             var productObjAUX = _dbContext.Products.Find(id);
+            
             productObjAUX.Name = product.Name;
             productObjAUX.Price = product.Price;
             _dbContext.SaveChanges();
@@ -206,19 +215,19 @@ namespace GraphQLProject.Services
                 objectList = _dbContext.Products.ToList();
             }
 
-            //// DELETE NO OBJETO EM MEMÓRIA
-            //for (int i = 0; i < objectList.Count; i++)
-            //{
-            //    if (id == objectList[i].Id)
-            //    {
-            //        objectList.RemoveAt(i);
-            //        break;
-            //    }
+            // DELETE NO OBJETO EM MEMÓRIA
+            for (int i = 0; i < objectList.Count; i++)
+            {
+                if (id == objectList[i].Id)
+                {
+                    objectList.RemoveAt(i);
+                    break;
+                }
 
-            //}
+            }
 
             // DELETA NA LISTA
-            objectList.RemoveAt(id);
+            //objectList.RemoveAt(id);
 
             // PREPARA ENVIO DA LISTA PARA O CACHE
             serializedObjectList = JsonConvert.SerializeObject(objectList);
